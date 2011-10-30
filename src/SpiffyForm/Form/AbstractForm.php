@@ -81,11 +81,7 @@ abstract class AbstractForm extends ZendForm
         
         // use object annotations to set validators/filters
         if ($object) {
-            if (!$annotations) { 
-                $annotations = $this->getReader()->getProperty($object, $name);
-            }
-            
-            if ($annotations) {
+            if ($annotations || ($annotations = $this->getReader()->getProperty($object, $name))) {
                 $element = $element ? $element : $this->_getElementType($annotations);
                 
                 $options['filters'] = $this->_getFilterValidator(self::FILTER, $annotations);
@@ -148,7 +144,7 @@ abstract class AbstractForm extends ZendForm
         if (null === $object) {
             $opts = $this->getDefaultOptions();
             if (isset($opts['data_class'])) {
-                $dataObject = new $opts['data_class'];
+                $object = new $opts['data_class'];
             }
         } else if (is_string($object)) {
             $object = new $object;
