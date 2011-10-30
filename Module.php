@@ -1,20 +1,13 @@
 <?php
 namespace SpiffyForm;
 
-use Doctrine\Common\Annotations\AnnotationRegistry,
-    Zend\Config\Config;
+use Zend\Config\Config;
 
 class Module
 {
     public function init()
     {
         $this->initAutoloader();
-        $this->initAnnotations();
-    }
-    
-    public function initAnnotations()
-    {
-        AnnotationRegistry::RegisterFile(__DIR__ . '/src/SpiffyForm/Annotation/Form.php');
     }
     
     public function initAutoloader()

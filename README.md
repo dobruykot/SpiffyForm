@@ -19,13 +19,13 @@ SpiffyForm key to your modules array.
   3. open my/project/folder/configs/application.config.php and add 'SpiffyForm' to your 'modules' parameter.
   
 ## Usage
-### Standard sample object
+### Sample test object
 Assume the following class:
     <?php
     namespace Application\Test;
-    use SpiffyAnnotation\Filter,
-        SpiffyAnnotation\Validator as Assert,
-        SpiffyForm\Annotation as Form;
+    use SpiffyAnnotation\Assert,
+        SpiffyAnnotation\Form,
+        SpiffyAnnotation\Filter;
         
     class Object 
     {
@@ -37,7 +37,7 @@ Assume the following class:
         protected $email;
     }
     
-### Simple object use case with form builder
+### Standard object use case with form builder
 You can generate a form using the builder with:
     $form = new \SpiffyForm\Form\Builder(array('dataObject' => 'Application\Test\Object'));
     
@@ -45,7 +45,7 @@ On form validation, you can retrieve the object (populated with values) by using
     
 ### Building forms manually with AbstractForm
 In some cases you may want to generate a form from an object and not include all the properties as
-form elements
+form elements.
 
     <?php
     namespace Application\Test;
