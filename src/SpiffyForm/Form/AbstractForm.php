@@ -1,10 +1,10 @@
 <?php
 namespace SpiffyForm\Form;
 use Doctrine\ORM\Mapping\Column,
-    SpiffyAnnotation\Filter\Filter,
+    SpiffyAnnotation\Form\Element,
+    SpiffyAnnotation\Assert\Assert,
     SpiffyAnnotation\Validator\Validator,
-    SpiffyAnnotation\Service\Reader as Reader,
-    SpiffyForm\Annotation\Element,
+    SpiffyAnnotation\Service\Reader,
     Zend\Filter\Word\CamelCaseToSeparator,
     Zend\Form\Form as ZendForm;
 
