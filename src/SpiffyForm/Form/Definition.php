@@ -2,7 +2,7 @@
 namespace SpiffyForm\Form;
 use SpiffyForm\Form\Manager;
 
-abstract class Type
+abstract class Definition
 {
     protected $_dataObject;
     

@@ -5,7 +5,7 @@ use Doctrine\ORM\Mapping\Column,
     SpiffyAnnotation\Filter\Filter,
     SpiffyAnnotation\Validator\Validator,
     SpiffyAnnotation\Service\Reader as ReaderService,
-    SpiffyForm\Form\Type,
+    SpiffyForm\Form\Definition,
     Zend\Filter\Word\CamelCaseToSeparator,
     Zend\Form\Form as ZendForm,
     Zend\Stdlib\Parameters;
@@ -41,11 +41,11 @@ class Manager
     protected $_elements;
 
     /**
-     * Form type, if set.
+     * Form definition, if set.
      * 
      * @var object
      */
-    protected $_type;
+    protected $_definition;
     
     /**
      * Data object the form binds to.
@@ -79,14 +79,14 @@ class Manager
             throw new \InvalidArgumentException('form builder requires a string or object');
         }
         
-        if ($object instanceof Type) {
-            $this->_type = $object;
+        if ($object instanceof Definition) {
+            $this->_definition = $object;
             
             if ($dataObject) {
                 $this->setDataObject($dataObject);
             }
             
-            $this->_validateDataObjectFromType();
+            $this->_validateDataObjectFromDefinition();
         } else {
             $this->setDataObject($object);
         }
@@ -148,8 +148,8 @@ class Manager
      */
     public function build()
     {
-        if ($this->_type) {
-            $this->_type->build($this);
+        if ($this->_definition) {
+            $this->_definition->build($this);
         } else {
             foreach($this->_elements as $name => $element) {
                 $this->add($name);
@@ -362,27 +362,27 @@ class Manager
     }
     
     /**
-     * Sets a data object from the form type.
+     * Sets a data object from the form definition.
      * 
      * @throws RuntimeException if no data object can be set
      */
-    protected function _validateDataObjectFromType()
+    protected function _validateDataObjectFromDefinition()
     {
         if ($this->getDataObject()) {
             return;
         }
         
-        if ($this->_type->getDataObject()) {
-            $this->setDataObject($this->_type->getDataObject());
+        if ($this->_definition->getDataObject()) {
+            $this->setDataObject($this->_definition->getDataObject());
             return;
         }
         
-        $options = $this->_type->getOptions();
+        $options = $this->_definition->getOptions();
         if (!isset($options['dataClass'])) {
             throw new \RuntimeException(sprintf(
                 'No data class could be found for %s. ' . 
                 'Did you set a dataClass in getOptions()?',
-                get_class($this->_type)
+                get_class($this->_definition)
             ));
         }
         $this->setDataObject($options['dataClass']);

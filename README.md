@@ -3,8 +3,10 @@ The SpiffyForm module includes a FormBuilder and Form class to generate and help
 from objects (and Doctrine entities if SpiffyDoctrine is installed). The following features are 
 intended to work out of the box: 
 
-  - Annotation driven form elements, either via @Form\Element or @ORM\Column.
-  - Annotation driven validators and filters provided by SpiffyAnnotation.
+  - Automatic form creation by passing an annotated object.
+  - Automatic form creation by passing a Doctrine entity.
+  - Manual form creation by passing a form type that specifies the elements to build.
+  - Automatic binding of data to objects.
  
 ## Requirements
   - Zend Framework 2
@@ -14,58 +16,95 @@ intended to work out of the box:
 The simplest way to install is to clone the repository into your /modules directory add the 
 SpiffyForm key to your modules array.
 
-  1. cd my/project/folder
-  2. git clone https://SpiffyJr@github.com/SpiffyJr/SpiffyForm.git modules/SpiffyForm --recursive
-  3. open my/project/folder/configs/application.config.php and add 'SpiffyForm' to your 'modules' parameter.
+  1. Install SpiffyAnnotation following the instructions documented.
+  2. cd my/project/folder
+  3. git clone https://SpiffyJr@github.com/SpiffyJr/SpiffyForm.git modules/SpiffyForm --recursive
+  4. open my/project/folder/configs/application.config.php and add 'SpiffyForm' to your 'modules' parameter.
   
-## Usage
-### Sample test object
-Assume the following class:
+## Annotating your objects
+In order for SpiffyForm to know what to do with your objects you must annotate them by adding
+use SpiffyAnnotation\Form and adding @Form\Element(type="type") to the element. For example,
+
     <?php
-    namespace Application\Test;
-    use SpiffyAnnotation\Assert,
-        SpiffyAnnotation\Form,
-        SpiffyAnnotation\Filter;
-        
-    class Object 
+    namespace My;
+    use SpiffyAnnotation\Form;
+    
+    class Test
     {
         /**
-         * @Form\Element(type="text",options={"label"="Email"})
-         * @Filter\StringTrim
-         * @Assert\EmailAddress
+         * @Form\Element(type="string")
          */
-        protected $email;
+        public $string;
+        
+        /**
+         * @Form\Element(type="boolean", options={"label"="My Boolean"})
+         */
+        public $boolean;
     }
     
-### Standard object use case with form builder
-You can generate a form using the builder with:
-    $form = new \SpiffyForm\Form\Builder(array('dataObject' => 'Application\Test\Object'));
-    
-On form validation, you can retrieve the object (populated with values) by using $form->getDataObject().
-    
-### Building forms manually with AbstractForm
-In some cases you may want to generate a form from an object and not include all the properties as
-form elements.
+Annotations require a "type" but "options" can be specified manually. Certain things, such as a label,
+will be added for you if one is not given.
+
+*Note: It is possible to build a form without annotations but you lose all automatic type guessing.*
+
+## Building an automatic form from an annotated object
+Using the object in "Annotation your objects" you can build a form automatically using the form 
+manager. In your controller:
+
+        $manager = new \SpiffyForm\Form\Manager('My\Test');
+        return array('form' => $manager->build()->getForm());
+
+This would build a form with a text fields, a checkbox, and a submit button.
+
+## Customizing a form using a form definition
+In some cases you may not want to build a form that matches an object entirely. Using a form definition
+gives you the power to customize a form to your liking.
 
     <?php
-    namespace Application\Test;
-    use SpiffyForm\Form\AbstractForm;
+    namespace My;
+    use SpiffyForm\Form\Definition;
     
-    class ManualForm extends AbstractForm
+    class FormDefinition extends Definition
     {
-        public function init()
+        public function build(Manager $m)
         {
-            // all examples will use filters/validators from annotations
-            $this->add('email'); // adds email from object using type guesser
-            $this->add('email', 'text') // adds email from object and forces text type
-            $this->add('email', 'text', array(...)); // specify options using an array() as last argument 
+            $m->add('string')
+              ->add('boolean')
+              ->add('something', 'text') // no automatic type guessing because no property exists in My\Test
+              ->add('thedate', 'date')   // no automatic type guessing because no property exists in My\Test
+              ->add('submit');
         }
         
-        public function getDefaultOptions()
+        public function getOptions()
         {
-            return array('data_class' => 'Application\Test\Object');
+            return array('dataClass' => 'My\Test');
         }
     }
+    
+The "getOptions()" method is required and tells the form manager what data object to bind to this
+form definition. The build method is passed the manager and you can use the add() method to add fields.
+You could build the form from a controller by using:
 
-### Building forms from Doctrine entities
-Coming soon...
+    $manager = new \SpiffyForm\Form\Manager('My\FormDefinition');
+    return array('form' => $manager->build()->getForm());
+    
+The manager is smart enough to realize that your using a form definition and will automatically generate
+a new data object for you. The form built will contain two text fields, a checkbox, a date box, and
+a submit element.
+
+## Binding a populated object to a form
+Edits are common among forms and the form manager allows you to bind populated data objects and will
+set the defaults of your form for you. In your controller:
+
+    $object = new \My\Test;
+    $object->string = 'my string value';
+    $object->boolean = true;
+
+    // without a form definition    
+    $manager = new \SpiffyForm\Form\Manager($object);
+    $form = $manager->build()->getForm();
+    
+    // with a form definition
+    $manager = new SpiffyForm\Form\Manager('My\FormDefinition', $dataObject);
+    $form = $manager->build()->getForm();
+
