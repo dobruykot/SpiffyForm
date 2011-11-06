@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping\Column,
     Zend\Filter\Word\CamelCaseToSeparator,
     Zend\Form\Form as ZendForm;
 
-abstract class AbstractForm extends ZendForm
+class Form extends ZendForm
 {
     const FILTER    = 0;
     const VALIDATOR = 1;
@@ -63,49 +63,6 @@ abstract class AbstractForm extends ZendForm
         parent::__construct($options);
         
         $this->_setDefaultsFromDataObject();
-    }
-    
-    /**
-     * Adds an element to the form using the annotation data from Doctrine
-     * to guess certain elements of the form. Validators and filters are also
-     * automatically injected from the object annotations.
-     * 
-     * @param string $name
-     * @param string $element
-     * $param null|array $options
-     */
-    public function add($name, $element = null, $options = null, $annotations = null)
-    {
-        $object = $this->getDataObject();
-        $field = isset($options['field']) ? $options['field'] : $name;
-        
-        // use object annotations to set validators/filters
-        if ($object) {
-            if ($annotations || ($annotations = $this->getReader()->getProperty($object, $name))) {
-                $element = $element ? $element : $this->_getElementType($annotations);
-                
-                $options['filters'] = $this->_getFilterValidator(self::FILTER, $annotations);
-                $options['validators'] = $this->_getFilterValidator(self::VALIDATOR, $annotations);
-            }
-        }
-        
-        // automatically setup submit type for submit name
-        if ($name == 'submit' && !$element) {
-            $element = $this->_defaultElements[self::TYPE_SUBMIT];
-            $options['ignore'] = true;
-        }
-        
-        // automatically add label if one doesn't exist
-        if (!$options || !array_key_exists('label', $options)) {
-            $filter = new CamelCaseToSeparator();
-            $options['label'] = ucfirst($filter->filter($name));
-        }
-        
-        if (!$element) {
-            throw new Exception\AutomaticTypeFailed($name, get_class($this));
-        }
-        
-        $this->addElement($element, $name, $options);
     }
     
     /**
@@ -223,32 +180,6 @@ abstract class AbstractForm extends ZendForm
             }
        }
        $this->setDefaults($defaults);
-    }
-    
-    /**
-     * Gets an element type based on a Doctrine mapping type.
-     * 
-     * @param array $annotations
-     * 
-     * @return string|null 
-     */
-    private function _getElementType(array $annotations)
-    {
-        $type = null;
-        foreach($annotations as $a) {
-            if ($a instanceof Element) {
-                $type = $a->type;
-                break;
-            } else if ($a instanceof Column) {
-                $type = $this->_defaultElements[$type];
-                break;
-            }
-        }
-        
-        if (!$type) {
-            return null;
-        }
-        return $type;
     }
     
     /**
