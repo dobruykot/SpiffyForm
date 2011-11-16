@@ -6,7 +6,7 @@ class AutomaticTypeFailed extends \BadMethodCallException
     public function __construct($name)
     {
         parent::__construct(sprintf(
-            'Adding type (%s) failed because an element could not be matched.', 
+            'Adding element (%s) failed because an element type could not be guessed.', 
             $name
         ));
     }

@@ -1,27 +1,23 @@
 <?php
 namespace SpiffyForm;
 
-use Zend\Config\Config;
+use Zend\EventManager\Event,
+    Zend\Module\Consumer\AutoloaderProvider,
+    Zend\Module\Manager;
 
-class Module
+class Module implements AutoloaderProvider
 {
-    public function init()
+    public function getAutoloaderConfig()
     {
-        $this->initAutoloader();
+        return array(
+            'Zend\Loader\ClassMapAutoloader' => array(
+                __DIR__ . '/autoload_classmap.php',
+            ),
+        );
     }
     
-    public function initAutoloader()
-    {
-        require __DIR__ . '/autoload_register.php';
-    }
-
     public function getConfig()
     {
         return include __DIR__ . '/configs/module.config.php';
-    }
-
-    public function getClassmap()
-    {
-        return include __DIR__ . '/classmap.php';
     }
 }

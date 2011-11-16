@@ -1,10 +1,10 @@
 <?php
 namespace SpiffyForm\Form;
-use Doctrine\ORM\Mapping\Column,
-    SpiffyAnnotation\Form\Element,
+use Doctrine\Common\Annotations\Reader,
+    Doctrine\ORM\Mapping\Column,
+    ReflectionClass,
     SpiffyAnnotation\Filter\Filter,
     SpiffyAnnotation\Validator\Validator,
-    SpiffyAnnotation\Service\Reader as ReaderService,
     SpiffyForm\Form\Definition,
     Zend\Filter\Word\CamelCaseToSeparator,
     Zend\Form\Form as ZendForm,
@@ -20,57 +20,70 @@ class Manager
     const FILTER_ANNOTATION          = 'SpiffyAnnotation\Filter\Filter';
     const VALIDATOR_ANNOTATION       = 'SpiffyAnnotation\Validator\Validator';
     
-    protected $_defaultTypes = array(
+    /**
+     * @var array
+     */
+    protected $defaultTypes = array(
         'integer' => 'text',
         'string'  => 'text',
+        'text'    => 'text',
         'submit'  => 'submit'
     );
-    
+
     /**
-     * Spiffy Annotation Reader.
+     * Doctrine reader.
      * 
-     * @var SpiffyAnnotation\Service\Reader
+     * @var Doctrine\Common\Annotations\Reader
      */
-    protected $_readerService;
+    protected $reader;
     
     /**
      * Elements read from annotations.
      * 
      * @var array
      */
-    protected $_elements;
+    protected $elements;
 
     /**
      * Form definition, if set.
      * 
      * @var object
      */
-    protected $_definition;
+    protected $definition;
     
     /**
      * Data object the form binds to.
      * 
      * @var object
      */
-    protected $_dataObject;
+    protected $dataObject;
+    
+    /**
+     * An array of subform definitions.
+     * 
+     * @var array
+     */
+    protected $subforms = array();
     
     /**
      * Spiffy Form.
      * 
      * @var SpiffyForm\Form\Form
      */
-    protected $_form;
+    protected $form;
     
     /**
      * Form builder builds a form from annotations.
      * 
-     * @param string|object $type       The form type or object to use to build the form.
+     * @param string|object $type       The form definition or object to use to build the form.
      * @param null|object   $dataObject The dataObject to set.
      * @throws InvalidArgumentException if dataObject is empty.
      * @throws InvalidArgumentException if dataObject is not a string or object.
      */
-    public function __construct($object = null, $dataObject = null)
+    public function __construct(Reader $reader, $object = null, $dataObject = null)
     {
+        $this->reader = $reader;
+        
         if (is_string($object)) {
             $object = new $object;
         }
@@ -80,19 +93,32 @@ class Manager
         }
         
         if ($object instanceof Definition) {
-            $this->_definition = $object;
+            $this->definition = $object;
             
-            if ($dataObject) {
+            if (!$dataObject) {
+                $dataObject = $this->getDataObjectFromDefinition($this->definition);
                 $this->setDataObject($dataObject);
             }
-            
-            $this->_validateDataObjectFromDefinition();
         } else {
             $this->setDataObject($object);
         }
         
-        $this->_form = new ZendForm;
-        $this->_readDataObjectElements();
+        $this->form = new ZendForm;
+        $this->elements = $this->readDataObjectElements();
+    }
+    
+    /**
+     * Gets the id for a definition.
+     * 
+     * @param string|object $definition
+     * @return string
+     */
+    public function getDefinitionId($definition)
+    {
+    	if (is_object($definition)) {
+    		$definition = get_class($definition);
+    	}
+    	return strtolower(str_replace('\\', '_', $definition));
     }
     
     /**
@@ -103,27 +129,55 @@ class Manager
      * @param string $name
      * @param string $element
      * @param null|array $options
+     * @throws \InvalidArgumentException if an object is provided and is not a form Definition.
      * @return SpiffyForm\Form\Builder, provides fluid interface.
      */
     public function add($name, $element = null, $options = null)
     {
-        $object = $this->getDataObject();
-        $field = isset($options['field']) ? $options['field'] : $name;
+        if (is_string($name) && class_exists($name)) {
+			$name = new $name;        	
+        } 
         
-        if (isset($this->_elements[$name])) {
-            $annotations = $this->_elements[$name];
-            $element = $element ? $element : $this->_guessElementType($annotations);
+       	if (is_object($name)) {
+       		if ($name instanceof Definition) {
+            	$this->addSubFormDefinition($name);
+            	return $this;
+       		} else {
+       			throw new \InvalidArgumentException('object must be an instance of Definition');
+       		}
+        }
+        
+        $object      = $this->getDataObject();
+        $field       = isset($options['field']) ? $options['field'] : $name;
+        $annotations = null;
+        $subForm     = null;
+        
+        // find the element from the base elements or a subform if available
+        if (isset($this->elements[$name])) {
+            $annotations = $this->elements[$name];
+        } else {
+            foreach($this->subforms as $sf) {
+                if (isset($sf['elements'][$name])) {
+                    $subForm     = $sf['form'];
+                    $annotations = $sf['elements'][$name];
+                    break;
+                }
+            }
+        }
+        
+        if ($annotations) {
+            $element = $element ? $element : $this->guessElementType($annotations);
             
-            $options['filters'] = $this->_getFilterValidator(self::FILTER, $annotations);
-            $options['validators'] = $this->_getFilterValidator(self::VALIDATOR, $annotations);
+            $options['filters']    = $this->getFilterValidator(self::FILTER, $annotations);
+            $options['validators'] = $this->getFilterValidator(self::VALIDATOR, $annotations);
             
             // additional options based on Doctrine annotations (if available)
-            $this->_addDoctrineOptions($options, $annotations);
+            $this->addDoctrineOptions($options, $annotations);
         }
         
         // automatically setup submit type for submit name
         if ($name == 'submit' && !$element) {
-            $element = $this->_defaultTypes['submit'];
+            $element = $this->defaultTypes['submit'];
             $options['ignore'] = true;
         }
         
@@ -137,7 +191,12 @@ class Manager
             throw new Exception\AutomaticTypeFailed($name, get_class($this));
         }
         
-        $this->getForm()->addElement($element, $name, $options);
+        if ($subForm) {
+            $subForm->addElement($element, $name, $options);
+        } else {
+            $this->getForm()->addElement($element, $name, $options);
+        }
+        
         return $this;
     }
     
@@ -148,17 +207,17 @@ class Manager
      */
     public function build()
     {
-        if ($this->_definition) {
-            $this->_definition->build($this);
+        if ($this->definition) {
+            $this->definition->build($this);
         } else {
-            foreach($this->_elements as $name => $element) {
+            foreach($this->elements as $name => $element) {
                 $this->add($name);
             }
             $this->add('submit');
         }
         
         // set the defaults
-        $this->_setFormFromDataObject();
+        $this->setFormDefaultsFromDataObject();
         
         return $this;
     }
@@ -172,75 +231,10 @@ class Manager
     {
         $valid = $this->getForm()->isValid($params->toArray());
         
-        $this->_setDataObjectFromForm();
+        $this->setDataObjectFromForm();
         
         return $valid;
     }
-    
-    /**
-     * Sets the data object values from filtered/validated form values..
-     */
-    protected function _setDataObjectFromForm()
-    {
-        $values = $this->getForm()->getValues();
-        foreach($this->_elements as $name => $data) {
-            if (isset($values[$name])) {
-                $this->_setDataObjectValue($name, $values[$name]);
-            }
-        }
-    }
-    
-    protected function _setFormFromDataObject()
-    {
-        foreach($this->getForm()->getElements() as $element) {
-            if (array_key_exists($element->getName(), $this->_elements)) {
-                $element->setValue($this->_getDataObjectValue($element->getName()));
-            } 
-        }
-    }
-    
-    protected function _getDataObjectValue($name)
-    {
-        $object = $this->getDataObject();
-        $vars = get_object_vars($object);
-        
-        $getter = 'get' . ucfirst($name);
-        if (method_exists($object, $getter)) {
-            return $object->$getter();
-        } else if (isset($object->$name) || array_key_exists($name, $vars)) {
-            return $object->$name;
-        } else {
-            throw new \RuntimeException(sprintf(
-                '%s could not be read to form. Try implementing %s::%s().',
-                $name,
-                get_class($object),
-                $getter
-            ));
-        }
-    }
-    
-    protected function _setDataObjectValue($name, $value)
-    {
-        $object = $this->getDataObject();
-        $vars = get_object_vars($object);
-        
-        $setter = 'set' . ucfirst($name);
-        if (method_exists($object, $setter)) {
-            $object->$setter($value);
-        } else if (isset($object->$name) || array_key_exists($name, $vars)) {
-            $object->$name = $value;
-        } else {
-            throw new \RuntimeException(sprintf(
-                '%s (%s) could not be bound to %s. Try implementing %s::%s().',
-                $name,
-                $value,
-                get_class($object),
-                get_class($object),
-                $setter
-            ));
-        }
-    }
-
 
     /**
      * Gets the form.
@@ -249,30 +243,7 @@ class Manager
      */
     public function getForm()
     {
-        return $this->_form;
-    }
-    
-    /**
-     * Set the annotation reader service.
-     * 
-     * @param SpiffyAnnotation\Service\Reader $readerService
-     */
-    public function setReaderService(ReaderService $readerService)
-    {
-        $this->_readerService = $readerService;
-    }
-    
-    /**
-     * Get the annotation reader service.
-     * 
-     * @return SpiffyAnnotation\Service\Reader
-     */
-    public function getReaderService()
-    {
-        if (null === $this->_readerService) {
-            $this->_readerService = new ReaderService;
-        }
-        return $this->_readerService;
+        return $this->form;
     }
     
     /**
@@ -291,7 +262,23 @@ class Manager
             throw new \InvalidArgumentException('data object must be a string or object.');
         }
         
-        $this->_dataObject = $dataObject;
+        $this->dataObject = $dataObject;
+    }
+    
+    /**
+     * Gets the data object assigned to the specified data object.
+     * 
+     * @param string|object $definition
+     */
+    public function getDefinitionDataObject($definition)
+    {
+    	if (is_object($definition)) {
+    		$definition = get_class($definition);
+    	}
+    	if (isset($this->subforms[$this->getDefinitionId($definition)])) {
+    		return $this->subforms[$this->getDefinitionId($definition)]['dataObject'];
+    	}
+    	return null;
     }
     
     /**
@@ -301,7 +288,17 @@ class Manager
      */
     public function getDataObject()
     {
-        return $this->_dataObject;
+        return $this->dataObject;
+    }
+    
+    /**
+     * Get the reader.
+     * 
+     * @return Doctrine\Common\Annotations\Reader
+     */
+    public function getReader()
+    {
+        return $this->reader;
     }
     
     /**
@@ -311,15 +308,14 @@ class Manager
      * 
      * @return string|null 
      */
-    private function _guessElementType(array $annotations)
+    protected function guessElementType(array $annotations)
     {
         $type = null;
         foreach($annotations as $a) {
             if ($a instanceof Element || $a instanceof Column) {
-                if (!isset($this->_defaultTypes[$a->type])) {
-                    throw new Exception\AutomaticTypeFailed($a->type);
+                if (isset($this->defaultTypes[$a->type])) {
+                    $type = $this->defaultTypes[$a->type];
                 }
-                $type = $this->_defaultTypes[$a->type];
                 break;
             }
         }
@@ -336,7 +332,7 @@ class Manager
      * @param array $annotations
      * @return array $filters
      */
-    private function _getFilterValidator($type, array $annotations)
+    protected function getFilterValidator($type, array $annotations)
     {
         $stuff = array();
         foreach($annotations as $a) {
@@ -366,29 +362,30 @@ class Manager
      * 
      * @throws RuntimeException if no data object can be set
      */
-    protected function _validateDataObjectFromDefinition()
+    protected function getDataObjectFromDefinition(Definition $def)
     {
-        if ($this->getDataObject()) {
-            return;
+        if ($def->getDataObject()) {
+            return $def->getDataObject();
         }
         
-        if ($this->_definition->getDataObject()) {
-            $this->setDataObject($this->_definition->getDataObject());
-            return;
-        }
-        
-        $options = $this->_definition->getOptions();
+        $options = $def->getOptions();
         if (!isset($options['dataClass'])) {
             throw new \RuntimeException(sprintf(
                 'No data class could be found for %s. ' . 
                 'Did you set a dataClass in getOptions()?',
-                get_class($this->_definition)
+                get_class($def)
             ));
         }
-        $this->setDataObject($options['dataClass']);
+        return new $options['dataClass'];
     }
     
-    protected function _addDoctrineOptions(array &$options, $annotations)
+    /**
+     * Adds additional options for doctrine entities.
+     * 
+     * @param array $options
+     * @param array $annotations
+     */
+    protected function addDoctrineOptions(array &$options, array $annotations)
     {
         foreach($annotations as $a) {
             if ($a instanceof Column) {
@@ -423,21 +420,145 @@ class Manager
 
     /**
      * Gets elements from the data object. Elements can be set from the Form\Element
-     * notation or can be read from Doctrine columns.
+     * annotation or can be read from Doctrine columns.
      * 
      * @return array
      */
-    protected function _readDataObjectElements()
+    protected function readDataObjectElements($dataObject = null)
     {
-        $elements = $this->getReaderService()->getProperties(
-            $this->getDataObject(),
-            array(
-                self::DOCTRINE_COLUMN_ANNOTATION,
-                self::FORM_ELEMENT_ANNOTATION,
-                self::FILTER_ANNOTATION,
-                self::VALIDATOR_ANNOTATION
-            )
+        if (null === $dataObject) {
+            $dataObject = $this->getDataObject();
+        }
+
+        $elements    = array();
+        $reflClass   = new ReflectionClass($dataObject);
+        $properties  = $reflClass->getProperties();
+        $reader      = $this->getReader();
+        
+        foreach($properties as $property) {
+            $elements[$property->getName()] = $reader->getPropertyAnnotations($property);
+        }
+        
+        return $elements;
+    }
+    
+    
+    /**
+     * Adds a subform definition.
+     * 
+     * @param Definition $definition
+     */
+    protected function addSubFormDefinition(Definition $definition)
+    {
+        static $formCount = 0;
+        
+        $dataObject = $this->getDataObjectFromDefinition($definition);
+        $elements   = $this->readDataObjectElements($dataObject);
+        $form       = new \Zend\Form\SubForm;
+        $id         = $this->getDefinitionId($definition);
+        
+        $this->subforms[$id] = array(
+            'form'       => $form,
+            'dataObject' => $dataObject,
+            'definition' => $definition,
+            'elements'   => $elements
         );
-        $this->_elements = $elements;
+        
+        $definition->build($this);
+        
+        $this->getForm()->addSubform(
+            $form,
+            $id
+        );
+    }
+    
+    /**
+     * Sets the data object values from filtered/validated form values..
+     */
+    protected function setDataObjectFromForm()
+    {
+        $values = $this->getForm()->getValues();
+        foreach($this->elements as $name => $data) {
+            if (isset($values[$name])) {
+                $this->setDataObjectValue($name, $values[$name]);
+            }
+        }
+
+        foreach($this->subforms as $sfName => $sf) {
+            foreach($sf['elements'] as $name => $data) {
+                if (isset($values[$sfName][$name])) {
+                    $this->setDataObjectValue($name, $values[$sfName][$name], $sf['dataObject']);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Set form defaults from data object.
+     */
+    protected function setFormDefaultsFromDataObject()
+    {
+        foreach($this->getForm()->getElements() as $element) {
+            if (array_key_exists($element->getName(), $this->elements)) {
+                $element->setValue($this->getDataObjectValue($element->getName()));
+            } 
+        }
+    }
+    
+    /**
+     * Gets a data object value.
+     * 
+     * @param string      $name
+     * @param object|null $dataObject
+     * @throws \RuntimeException if value could not be read
+     */
+    protected function getDataObjectValue($name, $dataObject = null)
+    {
+        $object = $dataObject ? $dataObject : $this->getDataObject();
+        $vars = get_object_vars($object);
+        
+        $getter = 'get' . ucfirst($name);
+        if (method_exists($object, $getter)) {
+            return $object->$getter();
+        } else if (isset($object->$name) || array_key_exists($name, $vars)) {
+            return $object->$name;
+        } else {
+            throw new \RuntimeException(sprintf(
+                '%s could not be read to form. Try implementing %s::%s().',
+                $name,
+                get_class($object),
+                $getter
+            ));
+        }
+    }
+    
+    /**
+     * Sets a data object value.
+     * 
+     * @param string      $name
+     * @param mixed       $value
+     * @param object|null $dataObject
+     * @throws \RuntimeException if value could not be set
+     */
+    protected function setDataObjectValue($name, $value, $dataObject = null)
+    {
+        $object = $dataObject ? $dataObject : $this->getDataObject();
+        $vars = get_object_vars($object);
+        
+        $setter = 'set' . ucfirst($name);
+        if (method_exists($object, $setter)) {
+            $object->$setter($value);
+        } else if (isset($object->$name) || array_key_exists($name, $vars)) {
+            $object->$name = $value;
+        } else {
+            throw new \RuntimeException(sprintf(
+                '%s (%s) could not be bound to %s. Try implementing %s::%s().',
+                $name,
+                $value,
+                get_class($object),
+                get_class($object),
+                $setter
+            ));
+        }
     }
 }
