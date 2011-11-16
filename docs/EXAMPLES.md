@@ -117,4 +117,21 @@ set the defaults of your form for you. In your controller:
         'object'     => 'My\FormDefinition',
         'dataObject' => $object
     ));
-    $manager->build();
+
+## Typical action for forms
+The following is your typical controller action for handling forms with the form manager.
+
+    public function addAction()
+    {
+        $request = $this->getRequest();
+        $manager = $this->getLocator()->get('spiffy_form_manager', array(
+            'object' => 'My\Form\Definition'
+        ));
+        $manager->build();
+        
+        if ($request->isPost() && $manager->isValid($request->post())) {
+            // form was valid, save data
+        }
+        
+        return array('form' => $manager->getForm());
+    }
