@@ -51,9 +51,10 @@ This would build a form with a text fields, a checkbox, and a submit button.
 
 ## Building an automatic form from a Doctrine entity
 Building a form using a Doctrine entity is identical to using an annotated object but the information
-is read from @ORM\Columns so you do not need to specify @Form\Element.
+is read from @ORM\Columns so you do not need to specify @Form\Element. You also need to use the specialized
+doctrine form manager.
 
-    $manager = $this->getLocator()->get('spiffy_form_manager', array(
+    $manager = $this->getLocator()->get('spiffy_form_manager_doctrine', array(
         'object' => 'My\Doctrine\Entity',
     ));
     $manager->build();

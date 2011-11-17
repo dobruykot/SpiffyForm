@@ -1,7 +1,7 @@
 <?php
 namespace SpiffyForm\Form;
 use Doctrine\Common\Annotations\Reader,
-    Doctrine\ORM\Mapping\Column,
+    Doctrine\ORM\EntityManager,
     ReflectionClass,
     SpiffyAnnotation\Filter\Filter,
     SpiffyAnnotation\Validator\Validator,
@@ -15,19 +15,16 @@ class Manager
     const FILTER    = 0;
     const VALIDATOR = 1;
     
-    const DOCTRINE_COLUMN_ANNOTATION = 'Doctrine\ORM\Mapping\Column';
-    const FORM_ELEMENT_ANNOTATION    = 'SpiffyAnnotation\Form\Element';
-    const FILTER_ANNOTATION          = 'SpiffyAnnotation\Filter\Filter';
-    const VALIDATOR_ANNOTATION       = 'SpiffyAnnotation\Validator\Validator';
-    
     /**
      * @var array
      */
     protected $defaultTypes = array(
-        'integer' => 'text',
-        'string'  => 'text',
-        'text'    => 'text',
-        'submit'  => 'submit'
+        'integer'  => 'text',
+        'string'   => 'text',
+        'text'     => 'text',
+        'boolean'  => 'checkbox',
+        'checkbox' => 'checkbox',
+        'submit'   => 'submit',
     );
 
     /**
@@ -75,10 +72,11 @@ class Manager
     /**
      * Form builder builds a form from annotations.
      * 
-     * @param string|object $type       The form definition or object to use to build the form.
-     * @param null|object   $dataObject The dataObject to set.
-     * @throws InvalidArgumentException if dataObject is empty.
-     * @throws InvalidArgumentException if dataObject is not a string or object.
+     * @param Reader         $reader     doctrine annotation reader
+     * @param string|object  $type       the form definition or dataObject to use to build the form.
+     * @param null|object    $dataObject the dataObject to set.
+     * @throws InvalidArgumentException  if dataObject is empty.
+     * @throws InvalidArgumentException  if dataObject is not a string or object.
      */
     public function __construct(Reader $reader, $object = null, $dataObject = null)
     {
@@ -103,7 +101,10 @@ class Manager
             $this->setDataObject($object);
         }
         
+        // create form and register custom paths
         $this->form = new ZendForm;
+        $this->form->addPrefixPath('SpiffyForm\Form\Element', 'SpiffyForm/Form/Element', 'element');
+        
         $this->elements = $this->readDataObjectElements();
     }
     
@@ -122,14 +123,14 @@ class Manager
     }
     
     /**
-     * Adds an element to the form using the annotation data from Doctrine
-     * to guess certain elements of the form. Validators and filters are also
-     * automatically injected from the object annotations.
+     * Adds an element to the form using the annotation data to guess certain 
+     * elements of the form. Validators and filters are also automatically injected 
+     * from the object annotations.
      * 
-     * @param string $name
-     * @param string $element
+     * @param string     $name
+     * @param string     $element
      * @param null|array $options
-     * @throws \InvalidArgumentException if an object is provided and is not a form Definition.
+     * @throws InvalidArgumentException if an object is provided and is not a form Definition.
      * @return SpiffyForm\Form\Builder, provides fluid interface.
      */
     public function add($name, $element = null, $options = null)
@@ -158,6 +159,7 @@ class Manager
         } else {
             foreach($this->subforms as $sf) {
                 if (isset($sf['elements'][$name])) {
+                    $object      = $sf['dataObject'];
                     $subForm     = $sf['form'];
                     $annotations = $sf['elements'][$name];
                     break;
@@ -170,9 +172,6 @@ class Manager
             
             $options['filters']    = $this->getFilterValidator(self::FILTER, $annotations);
             $options['validators'] = $this->getFilterValidator(self::VALIDATOR, $annotations);
-            
-            // additional options based on Doctrine annotations (if available)
-            $this->addDoctrineOptions($options, $annotations);
         }
         
         // automatically setup submit type for submit name
@@ -191,6 +190,9 @@ class Manager
             throw new Exception\AutomaticTypeFailed($name, get_class($this));
         }
         
+        // extending
+        $this->addAdditionalOptions($name, $element, $options, $object, $annotations);
+        
         if ($subForm) {
             $subForm->addElement($element, $name, $options);
         } else {
@@ -199,7 +201,7 @@ class Manager
         
         return $this;
     }
-    
+
     /**
      * Automatically builds the form using all the available annotation information.
      * 
@@ -266,7 +268,7 @@ class Manager
     }
     
     /**
-     * Gets the data object assigned to the specified data object.
+     * Gets the data object assigned to a specific definition.
      * 
      * @param string|object $definition
      */
@@ -302,7 +304,19 @@ class Manager
     }
     
     /**
-     * Gets an element type based on a Doctrine mapping type.
+     * Lets extending classes add additional options.
+     * 
+     * @param string     $name
+     * @param string     $element
+     * @param array      $options
+     * @param object     $object
+     * @param array|null $annotations
+     */
+    protected function addAdditionalOptions($name, $element, array &$options, $object, $annotations)
+    {}
+    
+    /**
+     * Gets an element type based or a Doctrine mapping type.
      * 
      * @param array $annotations
      * 
@@ -312,7 +326,7 @@ class Manager
     {
         $type = null;
         foreach($annotations as $a) {
-            if ($a instanceof Element || $a instanceof Column) {
+            if ($a instanceof Element) {
                 if (isset($this->defaultTypes[$a->type])) {
                     $type = $this->defaultTypes[$a->type];
                 }
@@ -380,45 +394,6 @@ class Manager
     }
     
     /**
-     * Adds additional options for doctrine entities.
-     * 
-     * @param array $options
-     * @param array $annotations
-     */
-    protected function addDoctrineOptions(array &$options, array $annotations)
-    {
-        foreach($annotations as $a) {
-            if ($a instanceof Column) {
-                if (!$a->nullable) {
-                    $options['required'] = true;
-                }
-                
-                switch($a->type) {
-                    case 'string':
-                        $options['filters'][] = 'StringTrim';
-                        if ($a->length) {
-                            $add = true;
-                            foreach($options['validators'] as $v) {
-                                if (strcasecmp($v['validator'], 'stringlength') == 0) {
-                                    $add = false;
-                                    break;
-                                }
-                            }
-                            if ($add) {
-                                $options['validators'][] = array(
-                                    'validator' => 'StringLength',
-                                    'max' => $a->length
-                                );
-                            }
-                        }
-                        break;
-                }
-                break;
-            }
-        }
-    }
-
-    /**
      * Gets elements from the data object. Elements can be set from the Form\Element
      * annotation or can be read from Doctrine columns.
      * 
@@ -450,8 +425,6 @@ class Manager
      */
     protected function addSubFormDefinition(Definition $definition)
     {
-        static $formCount = 0;
-        
         $dataObject = $this->getDataObjectFromDefinition($definition);
         $elements   = $this->readDataObjectElements($dataObject);
         $form       = new \Zend\Form\SubForm;
