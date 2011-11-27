@@ -136,7 +136,7 @@ class Entity extends Multi
             }
             
             if (count($identifier) > 1) {
-                $id = key;
+                $id = $key;
             } else {
                 $id = current($mdata->getIdentifierValues($entity));
             }

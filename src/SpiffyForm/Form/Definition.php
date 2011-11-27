@@ -42,6 +42,13 @@ abstract class Definition
     }
     
     /**
+     * Every form must have a unique name.
+     * 
+     * @return string
+     */
+    abstract public function getName();
+    
+    /**
      * Build the definition.
      * 
      * @param SpiffyForm\Form\Manager $m
