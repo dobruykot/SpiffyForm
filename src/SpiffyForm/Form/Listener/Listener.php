@@ -4,5 +4,11 @@ use Zend\EventManager\Event;
 
 interface Listener
 {
-    public function load(Event $e);
+    public function guessElement(Event $e);
+    
+    public function getOptions(Event $e);
+    
+    public function getValue(Event $e);
+    
+    public function setValue(Event $e);
 }

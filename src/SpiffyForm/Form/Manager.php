@@ -1,8 +1,7 @@
 <?php
 namespace SpiffyForm\Form;
-use Doctrine\Common\Annotations\Reader,
+use ReflectionClass,
     SpiffyForm\Form\Definition,
-    SpiffyForm\Form\Property\Collection as PropertyCollection,
     Zend\EventManager\EventCollection,
     Zend\EventManager\EventManager,
     Zend\Form\Form,
@@ -11,18 +10,32 @@ use Doctrine\Common\Annotations\Reader,
 class Manager
 {
     /**
+     * Static array of reflection classes for data objects.
+     * 
+     * @param array
+     */
+    protected static $reflClasses = array();
+    
+    /**
      * flag: is the form built?
      * 
      * @param boolean
      */
     protected $isBuilt = false;
-
+    
     /**
-     * Doctrine reader.
+     * An array of default annotation classes to check data with.
      * 
-     * @var Doctrine\Common\Annotations\Reader
+     * @param array
      */
-    protected $reader;
+    protected $defaultAnnotations = null;
+    
+    /**
+     * Data bound to form.
+     * 
+     * @var mixed
+     */
+    protected $data;
     
     /**
      * Form definition, if set.
@@ -53,7 +66,7 @@ class Manager
     protected $events;
     
     /**
-     * Array of property collections.
+     * Array of form properties (elements).
      * 
      * @var array
      */
@@ -62,11 +75,10 @@ class Manager
     /**
      * Form builder builds a form from annotations.
      * 
-     * @param Reader       $reader the Doctrine annotation reader used to read annotated properties.
-     * @param Definition   $type   the form definition used to build the form.
-     * @param array|object $data   default array data or object to bind the form to.
+     * @param Definition        $type   the form definition used to build the form.
+     * @param null|array|object $data   default array data or object to bind the form to.
      */
-    public function __construct(Reader $reader, Definition $definition = null, $data = null)
+    public function __construct(Definition $definition = null, $data = null)
     {
         $options = null;
         if ($definition) {
@@ -83,7 +95,6 @@ class Manager
             }
         }
         
-        $this->reader      = $reader;
         $this->definition  = $definition;
         $this->data        = $data;
         $this->options     = $options;
@@ -98,16 +109,22 @@ class Manager
     {
         $valid = $this->getForm()->isValid($params->toArray());
         
+        if ($this->definition) {
+            $valid &= $this->definition->isValid($params, $this->getForm());
+        }
+        
         $this->bindData();
         
-        return $valid;
+        return (bool) $valid;
     }
     
     public function add($name, $spec = null, array $options = array())
     {
-        $this->elements[$name] = array(
-            'spec'    => $spec,
-            'options' => $options,
+        $this->properties[$name] = new Property\Property(
+            $name,
+            $spec,
+            $options,
+            $this
         );
         return $this;
     }
@@ -118,6 +135,7 @@ class Manager
             return $this;
         }
         
+        // todo: make this definition another property of the form?
         if ($this->definition) {
             $this->definition->build($this);
         }
@@ -130,29 +148,18 @@ class Manager
             'element'
         );
 
-        foreach($this->elements as $name => $properties) {
-            $element = null;
-            $options = $properties['options'];
-            
-            // element guessing
-            if ($collection = $this->getPropertyCollection($properties['spec'])) {
-                if ($property = $collection->getProperty($name)) {
-                    $element = $property->getElement();
-                    $options = array_merge($options, $property->getOptions());
-                }
-            } else {
-                $element = $properties['spec'];
-            }
-            
-            if (null === $element) {
-                echo 'fixme: 4';
-                exit;
-            }
-            $this->form->addElement($element, $name, $options);
+        foreach($this->properties as $property) {
+            $property->build($this->form);
+            $this->form->getElement($property->getName())->setValue($property->getValue());
         }
         
         $this->isBuilt = true;
         return $this;
+    }
+    
+    public function getProperty($name)
+    {
+        return $this->properties[$name];
     }
 
     public function getData()
@@ -160,19 +167,26 @@ class Manager
         return $this->data;
     }
     
+    public function setData($data)
+    {
+        $this->data = $data;
+        return $this;
+    }
+    
+	/**
+	 * @return Zend\Form\Form
+	 */
     public function getForm()
     {
         $this->build();
         return $this->form;
     }
     
-    /**
-     * Retrieve the event manager
-     *
-     * Lazy-loads an EventManager instance if none registered.
-     * 
-     * @return EventCollection
-     */
+    public function setEventManager(EventCollection $events)
+    {
+        $this->events = $events;
+    }
+    
     public function events()
     {
         if (!$this->events instanceof EventCollection) {
@@ -182,82 +196,51 @@ class Manager
         return $this->events;
     }
     
-    public function setEventManager(EventCollection $events)
+    public function getDefaultAnnotations()
     {
-        $this->events = $events;
+        if (null === $this->defaultAnnotations) {
+            $this->setDefaultAnnotations();
+        }
+        return $this->defaultAnnotations;
+    }
+    
+    public function getReflectionClass()
+    {
+        if (!is_object($this->getData())) {
+            return null;
+        }
+        
+        $dataClass = get_class($this->getData());
+        if (!isset(self::$reflClasses[$dataClass])) {
+            self::$reflClasses[$dataClass] = new ReflectionClass($dataClass);
+        }
+        return self::$reflClasses[$dataClass];
     }
     
     protected function bindData()
     {
         $values = $this->getForm()->getValues();
         
-        if (is_array($this->getData())) {
-            $this->data = $values;
-            return;
-        }
-        
-        foreach($this->getForm()->getElements() as $element) {
-            if (isset($values[$element->getName()])) {
-                $this->setObjectValue($element->getName(), $values[$element->getName()]);
+        foreach($this->getForm()->getElements() as $name => $element) {
+            if (!$element || !isset($values[$name])) {
+                continue;
+            }
+            
+            $opts = $this->getProperty($name)->getOptions();
+            if (!isset($opts['bind']) || $opts['bind']) {
+                $this->getProperty($name)->setValue($values[$name]);
             }
         }
     }
     
-    /**
-     * Sets an object value.
-     * 
-     * @param string      $name
-     * @param mixed       $value
-     */
-    protected function setObjectValue($name, $value)
-    {
-        $data = $this->getData();
-        $vars = get_object_vars($data);
-        
-        $setter = 'set' . ucfirst($name);
-        if (method_exists($data, $setter)) {
-            $data->$setter($value);
-        } else if (isset($object->$name) || array_key_exists($name, $vars)) {
-            $data->$name = $value;
-        } else {
-            throw new \RuntimeException(sprintf(
-                '%s (%s) could not be bound to %s. Try implementing %s::%s().',
-                $name,
-                $value,
-                get_class($data),
-                get_class($data),
-                $setter
-            ));
-        }
-    }
+    protected function setDefaultAnnotations()
+    {}
     
     protected function setDefaultListeners()
     {
-        $this->events()->attach('element.guess', array(new Listener\BaseGuessListener, 'load'));
-        $this->events()->attach('element.options', array(new Listener\BaseOptionsListener, 'load'));
-    }
-    
-    protected function getPropertyCollection($spec)
-    {
-        if (is_object($spec)) {
-            if (!$spec instanceof Definition) {
-                // todo: throw exception
-            }
-            // todo: return definition based collection
-        }
-        
-        if (is_object($this->data)) {
-            $dataClass = get_class($this->data);
-            if (!isset($this->properties[$dataClass])) {
-                $this->properties[$dataClass] = new PropertyCollection(
-                    $this,
-                    $this->reader,
-                    $this->data
-                );
-            }
-            return $this->properties[$dataClass];
-        }
-        
-        return null;
+        $this->events()->attach('guess.element', array(new Listener\BaseListener, 'guessElement'));
+        $this->events()->attach('get.options', array(new Listener\BaseListener, 'getOptions'));
+        $this->events()->attach('set.value', array(new Listener\BaseListener, 'setValue'));
+        $this->events()->attach('get.value', array(new Listener\BaseListener, 'getValue'));
     }
 }

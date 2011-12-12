@@ -1,8 +1,11 @@
 <?php
 namespace SpiffyForm\Form\Element;
 use Closure,
+    InvalidArgumentException,
+    RuntimeException,
     Doctrine\ORM\EntityManager,
     Doctrine\ORM\EntityRepository,
+    Doctrine\ORM\Query,
     Zend\Form\Element\Multi;
 
 class Entity extends Multi
@@ -19,7 +22,11 @@ class Entity extends Multi
     
     protected $_property;
     
+    protected $_method;
+    
     protected $_emptyValue;
+    
+    protected $_entities;
     
     protected $helpers = array(
         'default'          => 'formSelect',
@@ -48,6 +55,11 @@ class Entity extends Multi
         $this->_property = $property;
     }
     
+    public function setMethod($method)
+    {
+        $this->_method = $method;
+    }
+    
     public function setClass($class)
     {
         $this->_class = $class;
@@ -61,7 +73,7 @@ class Entity extends Multi
     public function setQueryBuilder($queryBuilder)
     {
         if (!is_callable($queryBuilder)) {
-            throw new \InvalidArgumentException('query builder must be callable');
+            throw new InvalidArgumentException('query builder must be callable');
         }
         
         $this->_qb = $queryBuilder;
@@ -83,53 +95,67 @@ class Entity extends Multi
         $this->load();
     }
     
+    public function getEntities()
+    {
+        if (null === $this->_entities) {
+            if ($this->_qb instanceof Query) {
+                $entities = $this->_qb->getQuery()->execute();
+            } else if (is_callable($this->_qb)) {
+                $callable = $this->_qb;
+                $qb       = $callable($this->_em->getRepository($this->_class));
+                $entities = $qb->getQuery()->execute();
+            } else {
+                $entities = $this->_em->getRepository($this->_class)->findAll();
+            }
+            $this->_entities = $entities;
+        }
+        return $this->_entities;
+    }
+    
     protected function validateParams()
     {
         if (null === $this->_em) {
-            throw new \InvalidArgumentException('no entity manager was set');
+            throw new InvalidArgumentException('no entity manager was set');
         }
         if (null === $this->_class) {
-            throw new \InvalidArgumentException('no class was set');
+            throw new InvalidArgumentException('no class was set');
         }
     }
     
     protected function load()
     {
-        $em         = $this->_em;
-        $qb         = $this->_qb;
-        $class      = $this->_class;
-        $property   = $this->_property;
-        $mdata      = $em->getClassMetadata($class);
+        $mdata      = $this->_em->getClassMetadata($this->_class);
         $identifier = $mdata->getIdentifierFieldNames();
         
-        if ($qb) {
-            $entities = $qb->getQuery()->execute();
-        } else {
-            $entities = $em->getRepository($class)->findAll();
-        }
-        
-        // empty value?
         if ($this->_emptyValue && !$this->_multiple && !$this->_expanded) {
             $this->options[null] = $this->_emptyValue;
         }
         
-        foreach($entities as $key => $entity) {
-            if ($property) {
-                if (!isset($mdata->reflFields[$property])) {
-                    throw new \RuntimeException(sprintf(
+        foreach($this->getEntities() as $key => $entity) {
+            if ($this->_property) {
+                if (!isset($mdata->reflFields[$this->_property])) {
+                    throw new RuntimeException(sprintf(
                         'property "%s" could not be found in entity "%s"',
-                        $property,
-                        $class
+                        $this->_property,
+                        $this->_class
                     ));
                 }
-                $reflProp = $mdata->reflFields[$property];
                 
-                $value = $reflProp->getValue($entity);
+                $value = $mdata->reflFields[$this->_property]->getValue($entity);
+            } else if ($this->_method) {
+                if (!method_exists($entity, $this->_method)) {
+                    throw new RuntimeException(sprintf(
+                        'method "%s" could not be found in class "%s"',
+                        $this->_method,
+                        get_class($entity)
+                    ));
+                }
+                $value = $entity->{$this->_method}();
             } else {
                 if (!method_exists($entity, '__toString')) {
-                    throw new \RuntimeException(
+                    throw new RuntimeException(
                         'entities must have a "__toString()" method defined if you have not set ' . 
-                        'a "property" option.'
+                        'a "property" or "method" option.'
                     );
                 }
                 $value = (string) $entity;

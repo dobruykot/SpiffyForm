@@ -1,64 +1,37 @@
 <?php
 namespace SpiffyForm\Form;
-use SpiffyForm\Form\Manager;
+use SpiffyForm\Form\Manager,
+    Zend\Form\Form,
+    Zend\Stdlib\Parameters;
 
-abstract class Definition
+interface Definition
 {
-    /**
-     * @var object
-     */
-    protected $dataObject;
-    
-    /**
-     * Constructor.
-     * 
-     * @var object $dataObject
-     */
-    public function __construct($dataObject = null)
-    {
-        $this->setDataObject($dataObject);
-    }
-    
-    /**
-     * Set the data object
-     * 
-     * @param object $dataObject
-     * @return SpiffyForm\Form\Definition, provides fluent interface
-     */
-    public function setDataObject($dataObject)
-    {
-        $this->dataObject = $dataObject;
-        return $this;
-    }
-    
-    /**
-     * Get the data object bound to this definition.
-     * 
-     * @return object
-     */
-    public function getDataObject()
-    {
-        return $this->dataObject;
-    }
-    
     /**
      * Every form must have a unique name.
      * 
      * @return string
      */
-    abstract public function getName();
+    public function getName();
     
     /**
      * Build the definition.
      * 
      * @param SpiffyForm\Form\Manager $m
      */
-    abstract public function build(Manager $m);
+    public function build(Manager $m);
+    
+    /**
+     * Additional validation for the form definition if required.
+     * 
+     * @param Zend\Stdlib\Parameters $params
+     * @param Zend\Form\Form         $form
+     */
+    public function isValid($params, $form);
     
     /**
      * Get options for the definition.
      * 
      * @return array
      */
-    abstract public function getOptions();
+    public function getOptions();
 }
