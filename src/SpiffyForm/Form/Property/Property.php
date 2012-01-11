@@ -155,7 +155,7 @@ class Property
         } else if (($vars = get_object_vars($data)) && array_key_exists($name, $vars)) {
             $data->$name = $this->value;
         } else if ($reflProp = $this->getReflectionProperty()) {
-            $this->getReflectionProperty()->setValue($data, $$this->value);
+            $this->getReflectionProperty()->setValue($data, $this->value);
         } else {
             $this->value = null;
         }

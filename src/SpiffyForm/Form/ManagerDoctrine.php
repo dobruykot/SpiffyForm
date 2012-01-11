@@ -18,9 +18,9 @@ class ManagerDoctrine extends Manager
      * @param Definition   $type   the form definition used to build the form.
      * @param array|object $data   default array data or object to bind the form to.
      */
-    public function __construct(EntityManager $em, Definition $definition = null, $data = null)
+    public function __construct(EntityManager $em = null, Definition $definition = null, $data = null)
     {
-        $this->entityManager = $em;
+        $this->setEntityManager($em);
         parent::__construct($definition, $data);
     }
     
@@ -41,6 +41,7 @@ class ManagerDoctrine extends Manager
 
         $this->defaultAnnotations[] = 'SpiffyForm\Annotation\Doctrine\ORM\Column';
         $this->defaultAnnotations[] = 'SpiffyForm\Annotation\Doctrine\ORM\ManyToOne';
+        $this->defaultAnnotations[] = 'SpiffyForm\Annotation\Doctrine\ORM\OneToMany';
         
         return $this;
     }

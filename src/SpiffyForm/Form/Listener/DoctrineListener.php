@@ -1,7 +1,9 @@
 <?php
 namespace SpiffyForm\Form\Listener;
-use SpiffyForm\Annotation\Doctrine\ORM,
+use Doctrine\ORM\Mapping\ClassMetadata,
+    SpiffyForm\Annotation\Doctrine\ORM,
     SpiffyForm\Form\Guess\Guess,
+    SpiffyForm\Form\Element\Entity,
     Zend\EventManager\Event;
 
 class DoctrineListener implements Listener
@@ -11,7 +13,7 @@ class DoctrineListener implements Listener
         $guesses     = array();
         $annotations = $e->getParam('property')->getAnnotations();
         
-        foreach($annotations as $annotation) {        
+        foreach($annotations as $annotation) {
             if ($annotation instanceof ORM\Column) {
                 switch($annotation->type) {
                     case 'array':
@@ -42,6 +44,8 @@ class DoctrineListener implements Listener
                         break;
                 }
             } else if ($annotation instanceof ORM\ManyToOne) {
+                $guesses[] = new Guess('entity', Guess::HIGH);
+            } else if ($annotation instanceof ORM\OneToMany) {
                 $guesses[] = new Guess('entity', Guess::HIGH);
             }
         }
@@ -78,6 +82,11 @@ class DoctrineListener implements Listener
         $manager  = $e->getParam('manager');
         
         if ($property->getElement() == 'entity') {
+            if ($property->value === Entity::NULL_VALUE) {
+                $property->value = null;
+                return;
+            }
+            
             $options = $property->getOptions();
             $em      = $manager->getEntityManager();
             $mdata   = $em->getClassMetadata($options['class']);
@@ -106,7 +115,7 @@ class DoctrineListener implements Listener
         $em           = $manager->getEntityManager();
         
         $data = $manager->getData();
-        
+
         if (is_object($data)) {
             $mdata = $em->getClassMetadata(get_class($data));
             if (isset($mdata->fieldMappings[$name])) {
@@ -120,15 +129,22 @@ class DoctrineListener implements Listener
         $element = $property->getElement();
         switch($element) {
             case 'entity':
-                $class = null;
+                $options = array();
                 if (isset($mdata->associationMappings[$name])) {
-                    $class = $mdata->associationMappings[$name]['targetEntity'];
+                    $assoc = $mdata->associationMappings[$name];
+                    
+                    switch($assoc['type']) {
+                        case 2:
+                            break;
+                        case ClassMetadata::ONE_TO_MANY:
+                            $options['multiple'] = true;
+                            break;
+                    }
+                    
+                    $options['class'] = $assoc['targetEntity'];
                 }
                 
-                $options = array(
-                    'class'         => $class,
-                    'entityManager' => $em,
-                );
+                $options['entityManager'] = $em;
                 break;
         }
         

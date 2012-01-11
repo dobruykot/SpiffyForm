@@ -1,6 +1,7 @@
 <?php
 namespace SpiffyForm\Form;
 use ReflectionClass,
+    RuntimeException,
     SpiffyForm\Form\Definition,
     Zend\EventManager\EventCollection,
     Zend\EventManager\EventManager,
@@ -35,7 +36,7 @@ class Manager
      * 
      * @var mixed
      */
-    protected $data;
+    protected $data = null;
     
     /**
      * Form definition, if set.
@@ -75,29 +76,15 @@ class Manager
     /**
      * Form builder builds a form from annotations.
      * 
-     * @param Definition        $type   the form definition used to build the form.
-     * @param null|array|object $data   default array data or object to bind the form to.
+     * @param null|Definition|string $definition the form definition used to build the form.
+     * @param null|array|object      $data       default array data or object to bind the form to.
      */
-    public function __construct(Definition $definition = null, $data = null)
+    public function __construct($definition = null, $data = null)
     {
-        $options = null;
         if ($definition) {
-            $options         = $definition->getOptions();
-            $options['name'] = $definition->getName(); 
+            $this->setDefinition($definition);
         }
-        
-        if (null === $data) {
-            if ($options && isset($options['data_class'])) {
-                $data = new $options['data_class'];
-                unset($options['data_class']);
-            } else {
-                $data = array();
-            }
-        }
-        
-        $this->definition  = $definition;
-        $this->data        = $data;
-        $this->options     = $options;
+        $this->setData($data);
     }
     
     /**
@@ -157,6 +144,30 @@ class Manager
         return $this;
     }
     
+    public function setDefinition($definition)
+    {
+        if (is_string($definition)) {
+            if (!class_exists($definition)) {
+                throw new RuntimeException(sprintf(
+                    'definition class (%s) could not be found',
+                    $definition
+                ));
+            }
+            $definition = new $definition;
+        }
+        
+        $options = $definition->getOptions();
+
+        if (empty($this->data) && isset($options['data_class'])) {
+            $this->setData($options['data_class']);
+        }
+        
+        $this->definition  = $definition;
+        $this->options     = $options;
+        
+        return $this;
+    }
+    
     public function getProperty($name)
     {
         return $this->properties[$name];
@@ -169,6 +180,18 @@ class Manager
     
     public function setData($data)
     {
+        if (null === $data) {
+            $data = array();
+        } else if (is_string($data)) {
+            if (!class_exists($data)) {
+                throw new RuntimeException(sprintf(
+                    'data class (%s) could not be found',
+                    $data
+                ));
+            }
+            $data = new $data;
+        }
+        
         $this->data = $data;
         return $this;
     }
@@ -234,7 +257,11 @@ class Manager
     }
     
     protected function setDefaultAnnotations()
-    {}
+    {
+        $this->defaultAnnotations[] = 'SpiffyForm\Annotation\Form\Element';
+        
+        return $this;
+    }
     
     protected function setDefaultListeners()
     {

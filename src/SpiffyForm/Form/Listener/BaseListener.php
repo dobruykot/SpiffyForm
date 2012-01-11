@@ -1,6 +1,7 @@
 <?php
 namespace SpiffyForm\Form\Listener;
-use SpiffyForm\Form\Guess\Guess,
+use SpiffyForm\Annotation\Form,
+    SpiffyForm\Form\Guess\Guess,
     Zend\EventManager\Event,
     Zend\Filter\Word\CamelCaseToSeparator;
 
@@ -10,14 +11,21 @@ class BaseListener implements Listener
         
     public function guessElement(Event $e)
     {
-        $guess    = array();
-        $property = $e->getParam('property');
-        $name     = $property->getName();
+        $guess       = array();
+        $property    = $e->getParam('property');
+        $annotations = $property->getAnnotations();
+        $name        = $property->getName();
 
         $guesses[] = new Guess('text', Guess::LOW);
                 
         if ($name == 'submit') {
             $guesses[] = new Guess('submit', Guess::MEDIUM);
+        }
+        
+        foreach($annotations as $annotation) {
+            if ($annotation instanceof Form\Element) {
+                $guesses[] = new Guess($annotation->type, Guess::HIGH);
+            }
         }
         
         return $guesses;
