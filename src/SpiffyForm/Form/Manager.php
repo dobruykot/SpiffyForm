@@ -122,6 +122,8 @@ class Manager
             return $this;
         }
         
+        $this->isBuilt = true;
+        
         // todo: make this definition another property of the form?
         if ($this->definition) {
             $this->definition->build($this);
@@ -140,7 +142,10 @@ class Manager
             $this->form->getElement($property->getName())->setValue($property->getValue());
         }
         
-        $this->isBuilt = true;
+        if ($this->definition) {
+            $this->definition->postBuild($this);
+        }
+        
         return $this;
     }
     
@@ -170,6 +175,9 @@ class Manager
     
     public function getProperty($name)
     {
+        if (!isset($this->properties[$name])) {
+            return null;
+        }
         return $this->properties[$name];
     }
 
@@ -249,9 +257,13 @@ class Manager
                 continue;
             }
             
-            $opts = $this->getProperty($name)->getOptions();
+            if (!($property = $this->getProperty($name))) {
+                continue;
+            }
+            
+            $opts = $property->getOptions();
             if (!isset($opts['bind']) || $opts['bind']) {
-                $this->getProperty($name)->setValue($values[$name]);
+                $property->setValue($values[$name]);
             }
         }
     }
