@@ -1,7 +1,6 @@
 <?php
 namespace SpiffyForm\Form;
 use SpiffyForm\Form\Manager,
-    Zend\Form\Form,
     Zend\Stdlib\Parameters;
 
 abstract class Definition
@@ -17,9 +16,9 @@ abstract class Definition
      * After the initial form is generated you can use post build to add 
      * additional form elements or set options.
      * 
-     * @param Zend\Form\Form $f
+     * @param SpiffyForm\Form\Manager $f
      */
-    public function postBuild(Form $f, Manager $m)
+    public function postBuild(Manager $m)
     {}
     
     /**
