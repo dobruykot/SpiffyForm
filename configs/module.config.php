@@ -1,16 +1,39 @@
 <?php
 return array(
 	'di' => array(
-		'instance' => array(
-			'alias' => array(
-				'spiffy_form'          => 'SpiffyForm\Form\Manager',
-				'spiffy_form_doctrine' => 'SpiffyForm\Form\ManagerDoctrine'
-			),
-            'spiffy_form_doctrine' => array(
-                'parameters' => array(
-                    'em' => 'doctrine_em'
+        'definition' => array(
+            'class' => array(
+                'Zend\Cache\StorageFactory' => array(
+                    'instantiator' => 'Zend\Cache\StorageFactory::factory',
+                    'methods' => array(
+                        'factory' => array(
+                            'cfg'  => array('type' => false, 'required' => true),
+                        )
+                    )
                 )
             )
+        ),
+		'instance' => array(
+			'alias' => array(
+                // cache
+                'spiffy_form_file_cache' => 'Zend\Cache\StorageFactory',
+                
+                // builders
+				'form_builder' => 'SpiffyForm\Form\Builder\Standard',
+			),
+            'spiffy_form_file_cache' => array(
+                'parameters' => array(
+                    'cfg' => array(
+                        'adapter' => 'Filesystem',
+                        'options' => array(/* adapter options */),
+                        'plugins' => array('IgnoreUserAbort', 'Serializer'),
+                        'options' => array(
+                            'cacheDir' => 'data/cache',
+                            'ttl'      => 100
+                        )
+                    )
+                )
+            ),
 		),
 	)
 );

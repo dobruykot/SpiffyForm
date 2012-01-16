@@ -1,6 +1,6 @@
 <?php
 namespace SpiffyForm\Form;
-use SpiffyForm\Form\Manager,
+use SpiffyForm\Form\Builder,
     Zend\Stdlib\Parameters;
 
 abstract class Definition
@@ -8,17 +8,17 @@ abstract class Definition
     /**
      * Build the definition.
      * 
-     * @param SpiffyForm\Form\Manager $m
+     * @param SpiffyForm\Form\Builder $b
      */
-    abstract public function build(Manager $m);
+    abstract public function build(Builder $b);
     
     /**
      * After the initial form is generated you can use post build to add 
      * additional form elements or set options.
      * 
-     * @param SpiffyForm\Form\Manager $f
+     * @param SpiffyForm\Form\Builder $b
      */
-    public function postBuild(Manager $m)
+    public function postBuild(Builder $b)
     {}
     
     /**

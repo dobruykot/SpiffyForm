@@ -3,7 +3,7 @@ namespace SpiffyForm\Annotation;
 use RuntimeException,
     Zend\Code\Annotation\Annotation;
 
-class JsonAnnotation implements Annotation
+abstract class JsonAnnotation implements Annotation
 {
     /**
      * Error handler for unknown property accessor.
@@ -30,15 +30,17 @@ class JsonAnnotation implements Annotation
         );
     }
     
-    public function initialize($string)
+    public function jsonDecode($string)
     {
+        $string = preg_replace('/\s*(\w+)=/', '"$1"=', $string);
+        $string = str_replace('"=', '":', $string);
+        $string = "{{$string}}";
+                
         if (($properties = json_decode($string)) === null) {
             throw new RuntimeException(
                 'annotation could not be parsed as valid JSON'
             );
         }
-        foreach($properties as $key => $value) {
-            $this->$key = $value;
-        }
+        return (array) $properties;
     }
 }

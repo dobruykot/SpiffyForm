@@ -1,15 +1,30 @@
 <?php
+
 namespace SpiffyForm\Form\Listener;
-use SpiffyForm\Annotation\Form,
-    SpiffyForm\Form\Guess\Guess,
-    Zend\EventManager\Event,
+
+use SpiffyForm\Form\Guess\Guess,
+    SpiffyForm\Annotation\Standard as StandardAnnotation,
+    Zend\EventManager,
     Zend\Filter\Word\CamelCaseToSeparator;
 
-class BaseListener implements Listener
+class Standard implements EventManager\ListenerAggregate, ListenerInterface 
 {
     protected static $filter;
+
+    public function attach(EventManager\EventCollection $events)
+    {
+        $events->attach('guess.element', array($this, 'guessElement'));
+        $events->attach('get.options', array($this, 'getOptions'));
+        $events->attach('set.value', array($this, 'setValue'));
+        $events->attach('get.value', array($this, 'getValue'));
+    }
+
+    public function detach(EventManager\EventCollection $events)
+    {
         
-    public function guessElement(Event $e)
+    }
+
+    public function guessElement(EventManager\Event $e)
     {
         $guess       = array();
         $property    = $e->getParam('property');
@@ -23,7 +38,7 @@ class BaseListener implements Listener
         }
         
         foreach($annotations as $annotation) {
-            if ($annotation instanceof Form\Element) {
+            if ($annotation instanceof StandardAnnotation) {
                 $guesses[] = new Guess($annotation->type, Guess::HIGH);
             }
         }
@@ -31,11 +46,11 @@ class BaseListener implements Listener
         return $guesses;
     }
     
-    public function getOptions(Event $e)
+    public function getOptions(EventManager\Event $e)
     {
         $options  = array();
         $property = $e->getParam('property');
-        $manager  = $e->getParam('manager');
+        $manager  = $e->getParam('builder');
         $element  = $property->getElement();
         
         $options['label'] = ucfirst($this->getFilter()->filter($property->getName()));
@@ -44,13 +59,20 @@ class BaseListener implements Listener
             $options['ignore'] = true;
         }
         
+        $annotations = $property->getAnnotations();
+        foreach($annotations as $annotation) {
+            if ($annotation instanceof StandardAnnotation) {
+                $options = array_merge($options, (array) $annotation->options);
+            }
+        }
+        
         return $options;
     }
     
-    public function getValue(Event $e)
+    public function getValue(EventManager\Event $e)
     {
         $property = $e->getParam('property');
-        $data     = $e->getParam('manager')->getData();
+        $data     = $e->getParam('builder')->getData();
         $name     = $property->getName();
         $getter   = 'get' . ucfirst($name);
         $value    = $property->value;
@@ -71,7 +93,7 @@ class BaseListener implements Listener
         }
     }
     
-    public function setValue(Event $e)
+    public function setValue(EventManager\Event $e)
     {}
     
     protected function getFilter()

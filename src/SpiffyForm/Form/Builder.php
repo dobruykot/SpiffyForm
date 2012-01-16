@@ -3,12 +3,13 @@ namespace SpiffyForm\Form;
 use ReflectionClass,
     RuntimeException,
     SpiffyForm\Form\Definition,
+    Zend\Cache\Storage\Adapter\AbstractAdapter as CacheAdapter,
     Zend\EventManager\EventCollection,
     Zend\EventManager\EventManager,
     Zend\Form\Form,
     Zend\Stdlib\Parameters;
 
-class Manager
+abstract class Builder
 {
     /**
      * Static array of reflection classes for data objects.
@@ -65,6 +66,11 @@ class Manager
      * @var Zend\EventManager\EventManager
      */
     protected $events;
+    
+    /**
+     * @var Zend\Cache\Storage\Adapter\AbstractAdapter
+     */
+    protected $cache;
     
     /**
      * Array of form properties (elements).
@@ -129,23 +135,17 @@ class Manager
             $this->definition->build($this);
         }
         
-        // create form
-        $this->form = new Form($this->options);
-        $this->form->addPrefixPath(
-            'SpiffyForm\Form\Element',
-            'SpiffyForm/Form/Element',
-            'element'
-        );
-
-        foreach($this->properties as $property) {
-            $property->build($this->form);
-            $this->form->getElement($property->getName())->setValue($property->getValue());
-        }
-        
-        if ($this->definition) {
-            $this->definition->postBuild($this);
-        }
-        
+        return $this;
+    }
+    
+    public function getCache()
+    {
+        return $this->cache;
+    }
+    
+    public function setCache(CacheAdapter $cache)
+    {
+        $this->cache = $cache;
         return $this;
     }
     
@@ -204,12 +204,39 @@ class Manager
         return $this;
     }
     
-	/**
-	 * @return Zend\Form\Form
-	 */
     public function getForm()
     {
-        $this->build();
+        //$cacheKey = null;
+        //if ($this->definition) {
+        //    $cacheKey = preg_replace('/[^a-z0-9_\+\-]+/', '', strtolower(str_replace('\\', '-', get_class($this->definition))));
+        //}
+        
+        //if ($cacheKey && ($cache = $this->getCache())) {
+            //if (false === ($form = $this->cache->getItem($cacheKey))) {
+                $this->build();
+        
+                // create form
+                $form = new Form($this->options);
+                $form->addPrefixPath(
+                    'SpiffyForm\Form\Element',
+                    'SpiffyForm/Form/Element',
+                    'element'
+                );
+        
+                foreach($this->properties as $property) {
+                    $property->build($form);
+                    $form->getElement($property->getName())->setValue($property->getValue());
+                }
+                
+                if ($this->definition) {
+                    $this->definition->postBuild($this);
+                }
+                
+                //$this->cache->setItem($cacheKey, $form);
+            //}
+        //}
+        
+        $this->form = $form;
         return $this->form;
     }
     
@@ -268,18 +295,7 @@ class Manager
         }
     }
     
-    protected function setDefaultAnnotations()
-    {
-        $this->defaultAnnotations[] = 'SpiffyForm\Annotation\Form\Element';
-        
-        return $this;
-    }
+    abstract protected function setDefaultAnnotations();
     
-    protected function setDefaultListeners()
-    {
-        $this->events()->attach('guess.element', array(new Listener\BaseListener, 'guessElement'));
-        $this->events()->attach('get.options', array(new Listener\BaseListener, 'getOptions'));
-        $this->events()->attach('set.value', array(new Listener\BaseListener, 'setValue'));
-        $this->events()->attach('get.value', array(new Listener\BaseListener, 'getValue'));
-    }
+    abstract protected function setDefaultListeners();
 }

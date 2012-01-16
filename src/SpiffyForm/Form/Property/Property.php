@@ -1,11 +1,11 @@
 <?php
+
 namespace SpiffyForm\Form\Property;
+
 use ReflectionException,
     ReflectionProperty,
-    SpiffyForm\Form\Definition,
-    SpiffyForm\Form\Manager,
-    SpiffyForm\Form\Guess\Guess,
-    Zend\Form\Form;
+    SpiffyForm\Form,
+    Zend\Form\Form as ZendForm;
 
 class Property
 {
@@ -14,7 +14,7 @@ class Property
     protected $name;
     protected $spec;
 	
-    protected $manager;
+    protected $builder;
     protected $defaultOptions;
 
     protected $annotations = null;
@@ -22,22 +22,22 @@ class Property
     protected $element     = null;
     public    $value       = self::VALUE_NO_INIT;
     
-    public function __construct($name, $spec, array $defaultOptions = array(), Manager $manager)
+    public function __construct($name, $spec, array $defaultOptions = array(), Form\Builder $builder)
     {
         $this->name           = $name;
         $this->spec           = $spec;
         $this->defaultOptions = $defaultOptions;
-        $this->manager        = $manager;
+        $this->builder        = $builder;
         
         if (is_string($spec)) {
             $this->element = $spec;
         }
     }
     
-    public function build(Form $form)
+    public function build(ZendForm $form)
     {
         if ($this->spec instanceof Definition) {
-            $this->spec->build($this->manager);
+            $this->spec->build($this->builder);
             return;
         }
 
@@ -57,7 +57,7 @@ class Property
             
             if ($reflProperty = $this->getReflectionProperty()) {
                 $docComment = $this->getReflectionProperty()->getDocComment();
-                foreach($this->manager->getDefaultAnnotations() as $annotation) {
+                foreach($this->builder->getDefaultAnnotations() as $annotation) {
                     $obj = new $annotation;
                     if ($obj->initialize($docComment)) {
                         $annotations[] = $obj;
@@ -78,13 +78,13 @@ class Property
     public function getElement()
     {
         if (null === $this->element) {
-            $response = $this->manager->events()->trigger(
+            $response = $this->builder->events()->trigger(
                 'guess.element',
                 null,
-                array('manager' => $this->manager, 'property' => $this)
+                array('builder' => $this->builder, 'property' => $this)
             );
             
-            $this->element = Guess::getBestGuess($response);
+            $this->element = Form\Guess\Guess::getBestGuess($response);
         }
         
         return $this->element;
@@ -99,10 +99,10 @@ class Property
     {
         if (null === $this->options) {
             $options  = array();
-            $response = $this->manager->events()->trigger(
+            $response = $this->builder->events()->trigger(
                 'get.options',
                 null,
-                array('manager' => $this->manager, 'property' => $this)
+                array('builder' => $this->builder, 'property' => $this)
             );
             
             foreach($response as $option) {
@@ -117,10 +117,10 @@ class Property
     public function getValue()
     {
         if ($this->value === self::VALUE_NO_INIT) {
-            $response = $this->manager->events()->trigger(
+            $response = $this->builder->events()->trigger(
                 'get.value',
                 null,
-                array('manager' => $this->manager, 'property' => $this)
+                array('builder' => $this->builder, 'property' => $this)
             );
         }
         
@@ -132,19 +132,19 @@ class Property
         // set value so listeners have access
         $this->value = $value;
         
-        $response = $this->manager->events()->trigger(
+        $response = $this->builder->events()->trigger(
             'set.value',
             null,
-            array('manager' => $this->manager, 'property' => $this)
+            array('builder' => $this->builder, 'property' => $this)
         );
         
         // $this->value now contains listener modified value
         
-        $data = $this->manager->getData();
+        $data = $this->builder->getData();
         
         if (is_array($data)) {
             $data[$this->name] = $this->value;
-            $this->manager->setData($data);
+            $this->builder->setData($data);
             return;
         }
         
@@ -165,7 +165,7 @@ class Property
     
     public function getReflectionProperty()
     {
-        if (!($reflClass = $this->manager->getReflectionClass())) {
+        if (!($reflClass = $this->builder->getReflectionClass())) {
             return null;
         }
         
