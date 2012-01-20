@@ -206,6 +206,7 @@ abstract class Builder
     
     public function getForm()
     {
+        if (null === $this->form) {
         //$cacheKey = null;
         //if ($this->definition) {
         //    $cacheKey = preg_replace('/[^a-z0-9_\+\-]+/', '', strtolower(str_replace('\\', '-', get_class($this->definition))));
@@ -217,11 +218,11 @@ abstract class Builder
         
                 // create form
                 $form = new Form($this->options);
-                $form->addPrefixPath(
-                    'SpiffyForm\Form\Element',
-                    'SpiffyForm/Form/Element',
-                    'element'
-                );
+		        $form->addPrefixPath(
+		            'SpiffyForm\Form\Element',
+		            'SpiffyForm/Form/Element',
+		            'element'
+		        );
         
                 foreach($this->properties as $property) {
                     $property->build($form);
@@ -236,7 +237,8 @@ abstract class Builder
             //}
         //}
         
-        $this->form = $form;
+            $this->form = $form;
+        }
         return $this->form;
     }
     

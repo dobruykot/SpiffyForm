@@ -27,7 +27,7 @@ class Standard implements EventManager\ListenerAggregate, ListenerInterface
     public function guessElement(EventManager\Event $e)
     {
         $guess       = array();
-        $property    = $e->getParam('property');
+        $property    = $e->getTarget();
         $annotations = $property->getAnnotations();
         $name        = $property->getName();
 
@@ -49,8 +49,7 @@ class Standard implements EventManager\ListenerAggregate, ListenerInterface
     public function getOptions(EventManager\Event $e)
     {
         $options  = array();
-        $property = $e->getParam('property');
-        $manager  = $e->getParam('builder');
+        $property = $e->getTarget();
         $element  = $property->getElement();
         
         $options['label'] = ucfirst($this->getFilter()->filter($property->getName()));
@@ -71,8 +70,8 @@ class Standard implements EventManager\ListenerAggregate, ListenerInterface
     
     public function getValue(EventManager\Event $e)
     {
-        $property = $e->getParam('property');
-        $data     = $e->getParam('builder')->getData();
+        $property = $e->getTarget();
+        $data     = $property->getBuilder()->getData();
         $name     = $property->getName();
         $getter   = 'get' . ucfirst($name);
         $value    = $property->value;

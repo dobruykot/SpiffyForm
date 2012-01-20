@@ -16,12 +16,31 @@ return array(
 		'instance' => array(
 			'alias' => array(
                 // cache
-                'spiffy_form_file_cache' => 'Zend\Cache\StorageFactory',
+                'spiffyform_file_cache' => 'Zend\Cache\StorageFactory',
                 
                 // builders
-				'form_builder' => 'SpiffyForm\Form\Builder\Standard',
+				'spiffyform_builder'       => 'SpiffyForm\Form\Builder\Standard',
+				'spiffyform_builder_orm'   => 'SpiffyForm\Form\Builder\DoctrineORM',
+				'spiffyform_builder_mongo' => 'SpiffyForm\Form\Builder\DoctrineMongoODM',
 			),
-            'spiffy_form_file_cache' => array(
+			'spiffyform_builder' => array(
+				'parameters' => array(
+					'cache' => 'spiffyform_file_cache'
+				)
+			),
+            'spiffyform_builder_orm' => array(
+                'parameters' => array(
+                    'dm'    => 'doctrine_em',
+                    'cache' => 'spiffyform_file_cache'
+                )
+            ),
+            'spiffyform_builder_mongo' => array(
+                'parameters' => array(
+                    'dm'    => 'mongo_dm',
+                    'cache' => 'spiffyform_file_cache'
+                )
+            ),
+            'spiffyform_file_cache' => array(
                 'parameters' => array(
                     'cfg' => array(
                         'adapter' => 'Filesystem',

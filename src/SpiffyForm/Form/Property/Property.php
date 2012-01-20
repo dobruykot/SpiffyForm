@@ -34,6 +34,11 @@ class Property
         }
     }
     
+    public function getBuilder()
+    {
+        return $this->builder;
+    }
+    
     public function build(ZendForm $form)
     {
         if ($this->spec instanceof Definition) {
@@ -50,7 +55,7 @@ class Property
         return $this;
     }
     
-    public function getAnnotations()
+    public function getAnnotations($name = null)
     {
         if (null === $this->annotations) {
             $annotations = array();
@@ -78,11 +83,7 @@ class Property
     public function getElement()
     {
         if (null === $this->element) {
-            $response = $this->builder->events()->trigger(
-                'guess.element',
-                null,
-                array('builder' => $this->builder, 'property' => $this)
-            );
+            $response = $this->builder->events()->trigger('guess.element', $this);
             
             $this->element = Form\Guess\Guess::getBestGuess($response);
         }
@@ -99,11 +100,7 @@ class Property
     {
         if (null === $this->options) {
             $options  = array();
-            $response = $this->builder->events()->trigger(
-                'get.options',
-                null,
-                array('builder' => $this->builder, 'property' => $this)
-            );
+            $response = $this->builder->events()->trigger('get.options', $this);
             
             foreach($response as $option) {
                 $options = array_merge($option, $options);
@@ -117,11 +114,7 @@ class Property
     public function getValue()
     {
         if ($this->value === self::VALUE_NO_INIT) {
-            $response = $this->builder->events()->trigger(
-                'get.value',
-                null,
-                array('builder' => $this->builder, 'property' => $this)
-            );
+            $response = $this->builder->events()->trigger('get.value', $this);
         }
         
         return $this->value;
@@ -132,11 +125,7 @@ class Property
         // set value so listeners have access
         $this->value = $value;
         
-        $response = $this->builder->events()->trigger(
-            'set.value',
-            null,
-            array('builder' => $this->builder, 'property' => $this)
-        );
+        $response = $this->builder->events()->trigger('set.value', $this);
         
         // $this->value now contains listener modified value
         
