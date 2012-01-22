@@ -43,6 +43,10 @@ class DoctrineMongoODM implements ListenerAggregate, ListenerInterface
                     case 'hash':
                         // not supported
                         break;
+                    //set the id type as hidden
+                    case 'id':
+                        $guesses[] = new Guess('hidden', Guess::HIGH);
+                        break;
                     case 'boolean':
                         $guesses[] = new Guess('checkbox', Guess::HIGH);
                         break;
@@ -106,10 +110,19 @@ class DoctrineMongoODM implements ListenerAggregate, ListenerInterface
             $mdata = $dm->getClassMetadata(get_class($data));
             if (isset($mdata->fieldMappings[$name])) {
                 $map = $mdata->fieldMappings[$name];
-                
-                $optional = $map['nullable'] || $map['type'] == 'boolean' || ($map['type'] == 'id' && $map['strategy'] == 'auto');
+
+                //when we have an id with auto increment the strategy is INCREMENT and the type is custom_id
+                $isId = ($map['type'] == 'id' && $map['strategy'] == 'auto') || ($map['type'] == 'custom_id' &&
+                    $map['strategy'] == 'INCREMENT');
+                $optional = $map['nullable'] || $map['type'] == 'boolean' || $isId;
                 $options['required'] = !$optional;
-                
+
+                if ($isId) {
+                    $options['ignore'] = true;
+                    $options['decorators'] = array('ViewHelper');
+                    $options['order'] = -100;
+                }
+
                 if ($property->getElement() == 'document') {
                     $options['documentManager'] = $property->getBuilder()->getDocumentManager();
                     $options['targetDocument']  = $map['targetDocument'];
