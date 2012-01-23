@@ -12,6 +12,7 @@ class DoctrineMongoODM extends RegexAnnotation
     public $targetDocument = null;
     
     protected $types = array(
+        'Id'           => 'id',
         'Bin'           => 'bin',
         'BinCustom'     => 'bin_custom',
         'BinFunc'       => 'bin_func',
@@ -27,6 +28,8 @@ class DoctrineMongoODM extends RegexAnnotation
         'String'        => 'string',
         'ReferenceMany' => 'document',
         'ReferenceOne'  => 'document',
+        'EmbedMany' => 'document',
+        'EmbedOne'  => 'document'
     );
     
     public function initialize($string)
