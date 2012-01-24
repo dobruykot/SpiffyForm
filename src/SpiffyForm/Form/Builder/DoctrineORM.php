@@ -3,14 +3,15 @@
 namespace SpiffyForm\Form\Builder;
 
 use Doctrine\ORM\EntityManager,
-    SpiffyForm\Form,
+    SpiffyForm\Form\Definition,
+    SpiffyForm\Form\Builder\Standard,
     SpiffyForm\Form\Listener;
 
-class DoctrineORM extends Form\Builder\Standard
+class DoctrineORM extends Standard
 {
     protected $em;
     
-    public function __construct(EntityManager $em, Form\Definition $definition = null, $data = null)
+    public function __construct(EntityManager $em, Definition $definition = null, $data = null)
     {
         $this->setEntityManager($em);
         

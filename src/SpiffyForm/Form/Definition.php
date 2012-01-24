@@ -1,6 +1,7 @@
 <?php
 namespace SpiffyForm\Form;
 use SpiffyForm\Form\Builder,
+    Zend\Form\Form,
     Zend\Stdlib\Parameters;
 
 abstract class Definition
@@ -27,7 +28,7 @@ abstract class Definition
      * @param Zend\Stdlib\Parameters $params
      * @param Zend\Form\Form         $form
      */
-    public function isValid(Parameters $params, $form)
+    public function isValid(Parameters $params, Form $form)
     {
         return $form->isValid($params->toArray());
     }

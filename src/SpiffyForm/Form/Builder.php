@@ -230,7 +230,7 @@ abstract class Builder
                 }
                 
                 if ($this->definition) {
-                    $this->definition->postBuild($this);
+                    $this->definition->postBuild($this, $form);
                 }
                 
                 //$this->cache->setItem($cacheKey, $form);

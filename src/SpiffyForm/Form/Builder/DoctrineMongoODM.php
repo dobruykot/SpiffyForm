@@ -5,8 +5,7 @@ namespace SpiffyForm\Form\Builder;
 use Doctrine\ODM\MongoDB\DocumentManager,
     SpiffyForm\Form\Definition,
     SpiffyForm\Form\Builder\Standard,
-    SpiffyForm\Form\Listener,
-    Zend\Form\Form;
+    SpiffyForm\Form\Listener;
 
 class DoctrineMongoODM extends Standard
 {

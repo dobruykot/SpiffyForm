@@ -30,7 +30,7 @@ return array(
 			),
             'spiffyform_builder_orm' => array(
                 'parameters' => array(
-                    'dm'    => 'doctrine_em',
+                    'em'    => 'doctrine_em',
                     'cache' => 'spiffyform_file_cache'
                 )
             ),

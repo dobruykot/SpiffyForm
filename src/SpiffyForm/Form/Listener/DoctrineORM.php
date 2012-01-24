@@ -29,7 +29,7 @@ class DoctrineORM implements ListenerAggregate, ListenerInterface
     public function guessElement(Event $e)
     {
         $guesses     = array();
-        $annotations = $e->getParam('property')->getAnnotations();
+        $annotations = $e->getTarget()->getAnnotations();
         
         foreach($annotations as $annotation) {
             if ($annotation instanceof Annotation\DoctrineORM) {
@@ -72,8 +72,8 @@ class DoctrineORM implements ListenerAggregate, ListenerInterface
 
     public function getValue(Event $e)
     {
-        $property = $e->getParam('property');
-        $builder  = $e->getParam('builder');
+        $property = $e->getTarget();
+        $builder  = $property->getBuilder();
         
         if ($property->getElement() == 'entity' && null !== $property->value) {
             $options = $property->getOptions();
@@ -95,8 +95,8 @@ class DoctrineORM implements ListenerAggregate, ListenerInterface
     
     public function setValue(Event $e)
     {
-        $property = $e->getParam('property');
-        $builder  = $e->getParam('builder');
+        $property = $e->getTarget();
+        $builder  = $property->getBuilder();
         
         if ($property->getElement() == 'entity') {
             if ($property->value === Entity::NULL_VALUE) {
@@ -124,9 +124,9 @@ class DoctrineORM implements ListenerAggregate, ListenerInterface
     public function getOptions(Event $e)
     {
         $options      = array();
-        $property     = $e->getParam('property');
+        $property     = $e->getTarget();
         $defaults     = $property->getDefaultOptions();
-        $builder      = $e->getParam('builder');
+        $builder      = $property->getBuilder();
         $annotations  = $property->getAnnotations();
         $name         = $property->getName();
         $em           = $builder->getEntityManager();
